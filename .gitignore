@@ -8,19 +8,19 @@ pnpm-debug.log*
 # Environment variables
 .env
 .env.local
-.env.*.local
-config.ini
-sentry.ini
+.env.development.local
+.env.test.local
+.env.production.local
 
 # Logs
-logs/
+logs
 *.log
-pm2-logs/
 
-# Build outputs
-dist/
-build/
-*.tsbuildinfo
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
 
 # IDE
 .vscode/
@@ -31,21 +31,21 @@ build/
 
 # OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
-# Testing
-coverage/
-.nyc_output/
+# Build outputs
+dist/
+build/
+.next/
+out/
 
-# Temporary files
-tmp/
-temp/
-*.tmp
-
-# Database
-*.sqlite
-*.db
-
-# Prisma
-.env
-prisma/.env
+# Cache
+.cache/
+.parcel-cache/
+.temp/
+.tmp/

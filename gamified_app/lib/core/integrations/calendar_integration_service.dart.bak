@@ -1,0 +1,501 @@
+/// Calendar Integration Service
+/// Supports Google Calendar and Outlook Calendar integration
+/// Phase 4: Calendar Integration
+
+import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:googleapis/calendar/v3.dart' as google_calendar;
+import 'package:googleapis_auth/googleapis_auth.dart';
+
+class CalendarIntegrationService {
+  static final CalendarIntegrationService _instance =
+      CalendarIntegrationService._internal();
+  factory CalendarIntegrationService() => _instance;
+  CalendarIntegrationService._internal();
+
+  // ====================
+  // GOOGLE CALENDAR INTEGRATION
+  // ====================
+
+  /// Google Calendar API client
+  google_calendar.CalendarApi? _googleCalendarApi;
+  AuthClient? _googleAuthClient;
+
+  /// Initialize Google Calendar with OAuth2 credentials
+  Future<bool> initializeGoogleCalendar({
+    required String clientId,
+    required String clientSecret,
+    required List<String> scopes,
+  }) async {
+    try {
+      // In a real implementation, you would use googleapis_auth package
+      // This is a simplified version for demonstration
+      _googleAuthClient = await createClient(scopes);
+      if (_googleAuthClient != null) {
+        _googleCalendarApi = google_calendar.CalendarApi(_googleAuthClient!);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Error initializing Google Calendar: $e');
+      return false;
+    }
+  }
+
+  /// Get list of calendars from Google
+  Future<List<GoogleCalendarModel>> getGoogleCalendars() async {
+    if (_googleCalendarApi == null) return [];
+
+    try {
+      final calendars = await _googleCalendarApi!.calendarList.list();
+      return calendars.items
+              ?.map((cal) => GoogleCalendarModel.fromGoogleCalendar(cal))
+              .toList() ??
+          [];
+    } catch (e) {
+      print('Error fetching Google calendars: $e');
+      return [];
+    }
+  }
+
+  /// Create event in Google Calendar
+  Future<GoogleEvent?> createGoogleCalendarEvent({
+    required String calendarId,
+    required String title,
+    required String description,
+    required DateTime startDate,
+    required DateTime endDate,
+    required List<String> attendees,
+    String? location,
+  }) async {
+    if (_googleCalendarApi == null) return null;
+
+    try {
+      final event = google_calendar.Event()
+        ..summary = title
+        ..description = description
+        ..location = location
+        ..start = google_calendar.EventDateTime()
+          ..dateTime = startDate.toIso8601String()
+          ..timeZone = 'UTC'
+        ..end = google_calendar.EventDateTime()
+          ..dateTime = endDate.toIso8601String()
+          ..timeZone = 'UTC'
+        ..attendees = attendees
+            .map((email) => google_calendar.EventAttendee()..email = email)
+            .toList();
+
+      final createdEvent = await _googleCalendarApi!.events.insert(
+        event,
+        calendarId,
+      );
+
+      return GoogleEvent.fromGoogleEvent(createdEvent);
+    } catch (e) {
+      print('Error creating Google Calendar event: $e');
+      return null;
+    }
+  }
+
+  /// Sync tasks with Google Calendar
+  Future<bool> syncTasksWithGoogleCalendar({
+    required String calendarId,
+    required List<TaskToSync> tasks,
+  }) async {
+    if (_googleCalendarApi == null) return false;
+
+    try {
+      for (final task in tasks) {
+        await createGoogleCalendarEvent(
+          calendarId: calendarId,
+          title: task.title,
+          description: task.description,
+          startDate: task.startDate,
+          endDate: task.endDate,
+          attendees: task.attendees,
+          location: task.location,
+        );
+      }
+      return true;
+    } catch (e) {
+      print('Error syncing tasks with Google Calendar: $e');
+      return false;
+    }
+  }
+
+  // ====================
+  // OUTLOOK CALENDAR INTEGRATION
+  // ====================
+
+  final String _outlookBaseUrl = 'https://graph.microsoft.com/v1.0';
+
+  /// Authenticate with Microsoft Graph API
+  Future<bool> authenticateWithMicrosoft({
+    required String clientId,
+    required String clientSecret,
+    required String tenantId,
+    required String redirectUri,
+  }) async {
+    try {
+      // In a real implementation, you would use OAuth2 with Microsoft
+      // This is a simplified version for demonstration
+      // Store tokens securely
+      return true;
+    } catch (e) {
+      print('Error authenticating with Microsoft: $e');
+      return false;
+    }
+  }
+
+  /// Get access token for Microsoft Graph API
+  Future<String?> getMicrosoftAccessToken() async {
+    // In a real implementation, retrieve stored access token
+    // and refresh if expired
+    return null;
+  }
+
+  /// Get list of calendars from Outlook
+  Future<List<OutlookCalendarModel>> getOutlookCalendars() async {
+    try {
+      final token = await getMicrosoftAccessToken();
+      if (token == null) return [];
+
+      final response = await http.get(
+        Uri.parse('$_outlookBaseUrl/me/calendars'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final calendars = data['value'] as List;
+        return calendars
+            .map((cal) => OutlookCalendarModel.fromJson(cal))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching Outlook calendars: $e');
+      return [];
+    }
+  }
+
+  /// Create event in Outlook Calendar
+  Future<OutlookEvent?> createOutlookEvent({
+    required String calendarId,
+    required String subject,
+    required String body,
+    required DateTime startDate,
+    required DateTime endDate,
+    required List<String> attendees,
+    String? location,
+  }) async {
+    try {
+      final token = await getMicrosoftAccessToken();
+      if (token == null) return null;
+
+      final event = {
+        'subject': subject,
+        'body': {
+          'contentType': 'HTML',
+          'content': body,
+        },
+        'start': {
+          'dateTime': startDate.toIso8601String(),
+          'timeZone': 'UTC',
+        },
+        'end': {
+          'dateTime': endDate.toIso8601String(),
+          'timeZone': 'UTC',
+        },
+        'location': {
+          'displayName': location ?? '',
+        },
+        'attendees': attendees.map((email) => {
+          'emailAddress': {
+            'address': email,
+            'name': email,
+          },
+          'type': 'required',
+        }).toList(),
+      };
+
+      final response = await http.post(
+        Uri.parse('$_outlookBaseUrl/me/calendars/$calendarId/events'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode(event),
+      );
+
+      if (response.statusCode == 201) {
+        final data = json.decode(response.body);
+        return OutlookEvent.fromJson(data);
+      }
+      return null;
+    } catch (e) {
+      print('Error creating Outlook event: $e');
+      return null;
+    }
+  }
+
+  /// Sync tasks with Outlook Calendar
+  Future<bool> syncTasksWithOutlook({
+    required String calendarId,
+    required List<TaskToSync> tasks,
+  }) async {
+    try {
+      for (final task in tasks) {
+        await createOutlookEvent(
+          calendarId: calendarId,
+          subject: task.title,
+          body: task.description,
+          startDate: task.startDate,
+          endDate: task.endDate,
+          attendees: task.attendees,
+          location: task.location,
+        );
+      }
+      return true;
+    } catch (e) {
+      print('Error syncing tasks with Outlook: $e');
+      return false;
+    }
+  }
+
+  // ====================
+  // UNIFIED CALENDAR OPERATIONS
+  // ====================
+
+  /// Get all calendars from connected providers
+  Future<List<UnifiedCalendarModel>> getAllCalendars() async {
+    final List<UnifiedCalendarModel> calendars = [];
+
+    // Add Google calendars
+    final googleCalendars = await getGoogleCalendars();
+    calendars.addAll(googleCalendars.map((cal) => cal.toUnified()));
+
+    // Add Outlook calendars
+    final outlookCalendars = await getOutlookCalendars();
+    calendars.addAll(outlookCalendars.map((cal) => cal.toUnified()));
+
+    return calendars;
+  }
+
+  /// Create event in any connected calendar
+  Future<bool> createEvent({
+    required String provider, // 'google' or 'outlook'
+    required String calendarId,
+    required String title,
+    required String description,
+    required DateTime startDate,
+    required DateTime endDate,
+    required List<String> attendees,
+    String? location,
+  }) async {
+    if (provider == 'google') {
+      final event = await createGoogleCalendarEvent(
+        calendarId: calendarId,
+        title: title,
+        description: description,
+        startDate: startDate,
+        endDate: endDate,
+        attendees: attendees,
+        location: location,
+      );
+      return event != null;
+    } else if (provider == 'outlook') {
+      final event = await createOutlookEvent(
+        calendarId: calendarId,
+        subject: title,
+        body: description,
+        startDate: startDate,
+        endDate: endDate,
+        attendees: attendees,
+        location: location,
+      );
+      return event != null;
+    }
+    return false;
+  }
+
+  /// Check if calendar providers are connected
+  bool get isGoogleConnected => _googleCalendarApi != null;
+
+  Future<bool> get isOutlookConnected async => await getMicrosoftAccessToken() != null;
+}
+
+// ====================
+// MODELS
+// ====================
+
+class GoogleCalendarModel {
+  final String id;
+  final String name;
+  final String? description;
+  final String? timezone;
+
+  GoogleCalendarModel({
+    required this.id,
+    required this.name,
+    this.description,
+    this.timezone,
+  });
+
+  factory GoogleCalendarModel.fromGoogleCalendar(
+    google_calendar.CalendarListItem cal,
+  ) {
+    return GoogleCalendarModel(
+      id: cal.id!,
+      name: cal.summary ?? '',
+      description: cal.description,
+      timezone: cal.timeZone,
+    );
+  }
+
+  UnifiedCalendarModel toUnified() {
+    return UnifiedCalendarModel(
+      id: id,
+      name: name,
+      provider: 'google',
+      description: description,
+      timezone: timezone,
+    );
+  }
+}
+
+class OutlookCalendarModel {
+  final String id;
+  final String name;
+  final String? description;
+  final String? timezone;
+
+  OutlookCalendarModel({
+    required this.id,
+    required this.name,
+    this.description,
+    this.timezone,
+  });
+
+  factory OutlookCalendarModel.fromJson(Map<String, dynamic> json) {
+    return OutlookCalendarModel(
+      id: json['id'],
+      name: json['name'],
+      description: json['name'],
+      timezone: json['defaultTimeZone'],
+    );
+  }
+
+  UnifiedCalendarModel toUnified() {
+    return UnifiedCalendarModel(
+      id: id,
+      name: name,
+      provider: 'outlook',
+      description: description,
+      timezone: timezone,
+    );
+  }
+}
+
+class UnifiedCalendarModel {
+  final String id;
+  final String name;
+  final String provider; // 'google' or 'outlook'
+  final String? description;
+  final String? timezone;
+
+  UnifiedCalendarModel({
+    required this.id,
+    required this.name,
+    required this.provider,
+    this.description,
+    this.timezone,
+  });
+}
+
+class GoogleEvent {
+  final String id;
+  final String title;
+  final String? description;
+  final DateTime startDate;
+  final DateTime endDate;
+  final String? location;
+
+  GoogleEvent({
+    required this.id,
+    required this.title,
+    this.description,
+    required this.startDate,
+    required this.endDate,
+    this.location,
+  });
+
+  factory GoogleEvent.fromGoogleEvent(google_calendar.Event event) {
+    return GoogleEvent(
+      id: event.id!,
+      title: event.summary ?? '',
+      description: event.description,
+      startDate: DateTime.parse(event.start!.dateTime!),
+      endDate: DateTime.parse(event.end!.dateTime!),
+      location: event.location,
+    );
+  }
+}
+
+class OutlookEvent {
+  final String id;
+  final String subject;
+  final String? body;
+  final DateTime startDate;
+  final DateTime endDate;
+  final String? location;
+
+  OutlookEvent({
+    required this.id,
+    required this.subject,
+    this.body,
+    required this.startDate,
+    required this.endDate,
+    this.location,
+  });
+
+  factory OutlookEvent.fromJson(Map<String, dynamic> json) {
+    return OutlookEvent(
+      id: json['id'],
+      subject: json['subject'],
+      body: json['body']['content'],
+      startDate: DateTime.parse(json['start']['dateTime']),
+      endDate: DateTime.parse(json['end']['dateTime']),
+      location: json['location']['displayName'],
+    );
+  }
+}
+
+class TaskToSync {
+  final String title;
+  final String description;
+  final DateTime startDate;
+  final DateTime endDate;
+  final List<String> attendees;
+  final String? location;
+
+  TaskToSync({
+    required this.title,
+    required this.description,
+    required this.startDate,
+    required this.endDate,
+    required this.attendees,
+    this.location,
+  });
+}
+
+// Helper function for creating Google Auth client
+// In a real implementation, this would be more sophisticated
+Future<AuthClient?> createClient(List<String> scopes) async {
+  // Mock implementation - in real app, use googleapis_auth properly
+  return null;
+}

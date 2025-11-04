@@ -1,0 +1,43 @@
+{
+  "projectName": "CRM Gamified Task Management",
+  "version": "1.0.0",
+  "created": "2025-11-04",
+  "rootDir": "/home/zhaslan/Downloads/CRM-main",
+  "framework": "Flutter",
+  "language": "Dart",
+  "features": [
+    "gamification",
+    "teams",
+    "projects",
+    "achievements",
+    "leaderboard",
+    "reports"
+  ],
+  "phases": [
+    {
+      "id": "phase-1",
+      "name": "System Architecture",
+      "tasks": ["T-001", "T-002"]
+    },
+    {
+      "id": "phase-2",
+      "name": "Core Features",
+      "tasks": ["T-003", "T-004", "T-005"]
+    },
+    {
+      "id": "phase-3",
+      "name": "Gamification",
+      "tasks": ["T-006", "T-007", "T-008"]
+    },
+    {
+      "id": "phase-4",
+      "name": "Integration",
+      "tasks": ["T-009", "T-010"]
+    },
+    {
+      "id": "phase-5",
+      "name": "Testing & Deployment",
+      "tasks": ["T-011", "T-012"]
+    }
+  ]
+}

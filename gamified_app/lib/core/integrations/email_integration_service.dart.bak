@@ -1,0 +1,554 @@
+/// Email Integration Service
+/// Send email notifications using SMTP and SendGrid
+/// Phase 4: Email Integration
+
+import 'dart:convert';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:mailer/mailer.dart';
+import 'package:mailer/smtp_server.dart';
+
+class EmailIntegrationService {
+  static final EmailIntegrationService _instance =
+      EmailIntegrationService._internal();
+  factory EmailIntegrationService() => _instance;
+  EmailIntegrationService._internal();
+
+  SmtpServer? _smtpServer;
+  SendGridConfig? _sendGridConfig;
+
+  // ====================
+  // SMTP CONFIGURATION
+  // ====================
+
+  /// Initialize SMTP server
+  Future<bool> initializeSMTP({
+    required String host,
+    required int port,
+    required String username,
+    required String password,
+    bool useSSL = true,
+    bool useTLS = false,
+  }) async {
+    try {
+      _smtpServer = SmtpServer(
+        host,
+        port: port,
+        username: username,
+        password: password,
+        ssl: useSSL,
+        tls: useTLS,
+      );
+      return true;
+    } catch (e) {
+      print('Error initializing SMTP: $e');
+      return false;
+    }
+  }
+
+  /// Send email using SMTP
+  Future<bool> sendEmail({
+    required String to,
+    required String subject,
+    required String htmlContent,
+    String? from,
+    List<String>? cc,
+    List<String>? bcc,
+    List<File>? attachments,
+  }) async {
+    if (_smtpServer == null) return false;
+
+    try {
+      final message = Message()
+        ..from = Address(from ?? 'noreply@gamified-tasks.com')
+        ..recipients.add(to)
+        ..subject = subject
+        ..html = htmlContent;
+
+      if (cc != null) {
+        message.ccRecipients.addAll(cc.map((email) => Address(email)));
+      }
+      if (bcc != null) {
+        message.bccRecipients.addAll(bcc.map((email) => Address(email)));
+      }
+      if (attachments != null) {
+        message.attachments.addAll(
+          attachments.map((file) => FileAttachment(file)).toList(),
+        );
+      }
+
+      final sendReport = await send(message, _smtpServer!);
+      return sendReport.sent;
+    } catch (e) {
+      print('Error sending SMTP email: $e');
+      return false;
+    }
+  }
+
+  // ====================
+  // SENDGRID CONFIGURATION
+  // ====================
+
+  /// Initialize SendGrid
+  void initializeSendGrid({
+    required String apiKey,
+    String? fromEmail,
+    String? fromName,
+  }) {
+    _sendGridConfig = SendGridConfig(
+      apiKey: apiKey,
+      fromEmail: fromEmail ?? 'noreply@gamified-tasks.com',
+      fromName: fromName ?? 'Gamified Tasks',
+    );
+  }
+
+  /// Send email using SendGrid
+  Future<bool> sendSendGridEmail({
+    required String to,
+    required String subject,
+    required String htmlContent,
+    String? textContent,
+    String? fromEmail,
+    String? fromName,
+    List<String>? cc,
+    List<String>? bcc,
+    List<SendGridAttachment>? attachments,
+  }) async {
+    if (_sendGridConfig == null) return false;
+
+    try {
+      final url = Uri.parse('https://api.sendgrid.com/v3/mail/send');
+
+      final payload = {
+        'personalizations': [
+          {
+            'to': [{'email': to}],
+            'cc': if (cc != null) ...[
+              for (final email in cc) {'email': email}
+            ],
+            'bcc': if (bcc != null) ...[
+              for (final email in bcc) {'email': email}
+            ],
+          }
+        ],
+        'from': {
+          'email': fromEmail ?? _sendGridConfig!.fromEmail,
+          'name': fromName ?? _sendGridConfig!.fromName,
+        },
+        'subject': subject,
+        'content': [
+          {
+            'type': 'text/html',
+            'value': htmlContent,
+          },
+          if (textContent != null)
+            {
+              'type': 'text/plain',
+              'value': textContent,
+            },
+        ],
+        'attachments': if (attachments != null) ...[
+          for (final attachment in attachments) attachment.toJson(),
+        ],
+      };
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Authorization': 'Bearer ${_sendGridConfig!.apiKey}',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode(payload),
+      );
+
+      return response.statusCode == 202;
+    } catch (e) {
+      print('Error sending SendGrid email: $e');
+      return false;
+    }
+  }
+
+  // ====================
+  // EMAIL TEMPLATES
+  // ====================
+
+  /// Send task assignment email
+  Future<bool> sendTaskAssignmentEmail({
+    required String to,
+    required String assignedTo,
+    required String assignedBy,
+    required String taskTitle,
+    required String taskDescription,
+    required DateTime dueDate,
+    bool useSendGrid = true,
+  }) async {
+    final subject = 'New Task Assignment: $taskTitle';
+    final html = '''
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #4A90E2; color: white; padding: 20px; text-align: center; }
+          .content { background-color: #f9f9f9; padding: 20px; }
+          .footer { background-color: #333; color: white; padding: 10px; text-align: center; }
+          .button { background-color: #4A90E2; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>📋 New Task Assignment</h1>
+          </div>
+          <div class="content">
+            <p>Hello <strong>$assignedTo</strong>,</p>
+            <p>You have been assigned a new task by <strong>$assignedBy</strong>.</p>
+
+            <h3>Task Details:</h3>
+            <p><strong>Title:</strong> $taskTitle</p>
+            <p><strong>Description:</strong> $taskDescription</p>
+            <p><strong>Due Date:</strong> ${dueDate.toIso8601String()}</p>
+
+            <p>Please review the task and update your progress regularly.</p>
+
+            <p style="text-align: center;">
+              <a href="https://your-app-url.com/tasks" class="button">View Task</a>
+            </p>
+          </div>
+          <div class="footer">
+            <p>Gamified Tasks - Stay Productive!</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    ''';
+
+    if (useSendGrid) {
+      return await sendSendGridEmail(
+        to: to,
+        subject: subject,
+        htmlContent: html,
+      );
+    } else {
+      return await sendEmail(
+        to: to,
+        subject: subject,
+        htmlContent: html,
+      );
+    }
+  }
+
+  /// Send achievement unlocked email
+  Future<bool> sendAchievementEmail({
+    required String to,
+    required String userName,
+    required String achievementTitle,
+    required String achievementDescription,
+    required int xpReward,
+    bool useSendGrid = true,
+  }) async {
+    final subject = '🏆 Achievement Unlocked: $achievementTitle';
+    final html = '''
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #F5A623; color: white; padding: 20px; text-align: center; }
+          .content { background-color: #f9f9f9; padding: 20px; }
+          .footer { background-color: #333; color: white; padding: 10px; text-align: center; }
+          .achievement-box { background-color: #FFF; border: 2px solid #F5A623; padding: 15px; margin: 15px 0; border-radius: 8px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🏆 Congratulations!</h1>
+          </div>
+          <div class="content">
+            <p>Hello <strong>$userName</strong>,</p>
+            <div class="achievement-box">
+              <h3 style="margin-top: 0;">You unlocked a new achievement!</h3>
+              <p><strong>Achievement:</strong> $achievementTitle</p>
+              <p><strong>Description:</strong> $achievementDescription</p>
+              <p><strong>XP Reward:</strong> $xpReward XP</p>
+            </div>
+            <p>Keep up the great work! 🎉</p>
+          </div>
+          <div class="footer">
+            <p>Gamified Tasks - Celebrate Your Success!</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    ''';
+
+    if (useSendGrid) {
+      return await sendSendGridEmail(
+        to: to,
+        subject: subject,
+        htmlContent: html,
+      );
+    } else {
+      return await sendEmail(
+        to: to,
+        subject: subject,
+        htmlContent: html,
+      );
+    }
+  }
+
+  /// Send deadline reminder email
+  Future<bool> sendDeadlineReminderEmail({
+    required String to,
+    required String userName,
+    required String taskTitle,
+    required DateTime dueDate,
+    int hoursUntilDeadline = 24,
+    bool useSendGrid = true,
+  }) async {
+    final subject = '⏰ Deadline Reminder: $taskTitle';
+    final html = '''
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #E74C3C; color: white; padding: 20px; text-align: center; }
+          .content { background-color: #f9f9f9; padding: 20px; }
+          .footer { background-color: #333; color: white; padding: 10px; text-align: center; }
+          .urgent { color: #E74C3C; font-weight: bold; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>⏰ Deadline Reminder</h1>
+          </div>
+          <div class="content">
+            <p>Hello <strong>$userName</strong>,</p>
+            <p>This is a friendly reminder that the following task is due soon:</p>
+
+            <p><strong>Task:</strong> <span class="urgent">$taskTitle</span></p>
+            <p><strong>Due Date:</strong> ${dueDate.toIso8601String()}</p>
+            <p><strong>Time Remaining:</strong> <span class="urgent">$hoursUntilDeadline hours</span></p>
+
+            <p>Please make sure to complete this task before the deadline.</p>
+          </div>
+          <div class="footer">
+            <p>Gamified Tasks - Never Miss a Deadline!</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    ''';
+
+    if (useSendGrid) {
+      return await sendSendGridEmail(
+        to: to,
+        subject: subject,
+        htmlContent: html,
+      );
+    } else {
+      return await sendEmail(
+        to: to,
+        subject: subject,
+        htmlContent: html,
+      );
+    }
+  }
+
+  /// Send weekly summary email
+  Future<bool> sendWeeklySummaryEmail({
+    required String to,
+    required String userName,
+    required int tasksCompleted,
+    required int xpEarned,
+    required int achievementsUnlocked,
+    required int streakDays,
+    double? completionRate,
+    bool useSendGrid = true,
+  }) async {
+    final subject = '📊 Your Weekly Performance Summary';
+    final html = '''
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #2ECC71; color: white; padding: 20px; text-align: center; }
+          .content { background-color: #f9f9f9; padding: 20px; }
+          .footer { background-color: #333; color: white; padding: 10px; text-align: center; }
+          .metric-box { background-color: #FFF; border-left: 4px solid #2ECC71; padding: 15px; margin: 10px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>📊 Weekly Summary</h1>
+          </div>
+          <div class="content">
+            <p>Hello <strong>$userName</strong>,</p>
+            <p>Here's your performance summary for this week:</p>
+
+            <div class="metric-box">
+              <h3>Tasks Completed: $tasksCompleted</h3>
+            </div>
+
+            <div class="metric-box">
+              <h3>XP Earned: $xpEarned</h3>
+            </div>
+
+            <div class="metric-box">
+              <h3>Achievements Unlocked: $achievementsUnlocked</h3>
+            </div>
+
+            <div class="metric-box">
+              <h3>Current Streak: $streakDays days</h3>
+            </div>
+
+            ${completionRate != null ? '''
+            <div class="metric-box">
+              <h3>Completion Rate: ${(completionRate * 100).toStringAsFixed(1)}%</h3>
+            </div>
+            ''' : ''}
+
+            <p>Keep up the excellent work! 🎉</p>
+          </div>
+          <div class="footer">
+            <p>Gamified Tasks - Track Your Progress!</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    ''';
+
+    if (useSendGrid) {
+      return await sendSendGridEmail(
+        to: to,
+        subject: subject,
+        htmlContent: html,
+      );
+    } else {
+      return await sendEmail(
+        to: to,
+        subject: subject,
+        htmlContent: html,
+      );
+    }
+  }
+
+  /// Send team performance report email
+  Future<bool> sendTeamReportEmail({
+    required String to,
+    required String managerName,
+    required String teamName,
+    required int totalTasks,
+    required int completedTasks,
+    required double completionRate,
+    required List<String> topPerformers,
+    bool useSendGrid = true,
+  }) async {
+    final subject = '📈 Team Performance Report: $teamName';
+    final html = '''
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #3498DB; color: white; padding: 20px; text-align: center; }
+          .content { background-color: #f9f9f9; padding: 20px; }
+          .footer { background-color: #333; color: white; padding: 10px; text-align: center; }
+          .stat-box { background-color: #FFF; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>📈 Team Report</h1>
+          </div>
+          <div class="content">
+            <p>Hello <strong>$managerName</strong>,</p>
+            <p>Here's the performance report for team <strong>$teamName</strong>:</p>
+
+            <div class="stat-box">
+              <p><strong>Total Tasks:</strong> $totalTasks</p>
+              <p><strong>Completed Tasks:</strong> $completedTasks</p>
+              <p><strong>Completion Rate:</strong> ${(completionRate * 100).toStringAsFixed(1)}%</p>
+            </div>
+
+            <h3>Top Performers:</h3>
+            <ul>
+              ${topPerformers.map((p) => '<li>$p</li>').join()}
+            </ul>
+          </div>
+          <div class="footer">
+            <p>Gamified Tasks - Team Analytics</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    ''';
+
+    if (useSendGrid) {
+      return await sendSendGridEmail(
+        to: to,
+        subject: subject,
+        htmlContent: html,
+      );
+    } else {
+      return await sendEmail(
+        to: to,
+        subject: subject,
+        htmlContent: html,
+      );
+    }
+  }
+
+  bool get isSMTPConnected => _smtpServer != null;
+  bool get isSendGridConnected => _sendGridConfig != null;
+}
+
+// ====================
+// MODELS
+// ====================
+
+class SendGridConfig {
+  final String apiKey;
+  final String fromEmail;
+  final String fromName;
+
+  SendGridConfig({
+    required this.apiKey,
+    required this.fromEmail,
+    required this.fromName,
+  });
+}
+
+class SendGridAttachment {
+  final String content;
+  final String filename;
+  final String? type;
+  final String? disposition;
+
+  SendGridAttachment({
+    required this.content,
+    required this.filename,
+    this.type,
+    this.disposition,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'content': content,
+      'filename': filename,
+      if (type != null) 'type': type,
+      if (disposition != null) 'disposition': disposition,
+    };
+  }
+}

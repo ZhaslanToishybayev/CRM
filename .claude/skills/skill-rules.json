@@ -1,7 +1,67 @@
 {
     "version": "1.0",
-    "description": "Skill activation triggers for Claude Code. Controls when skills automatically suggest or block actions.",
+    "description": "Skill activation triggers for Claude Code CRM Project. Controls when skills automatically suggest or block actions.",
     "skills": {
+        "flutter-dev-guidelines": {
+            "type": "domain",
+            "enforcement": "suggest",
+            "priority": "high",
+            "description": "Flutter/Dart development patterns for CRM project with Riverpod, Freezed, and Supabase",
+            "promptTriggers": {
+                "keywords": [
+                    "flutter",
+                    "dart",
+                    "widget",
+                    "riverpod",
+                    "freezed",
+                    "provider",
+                    "statelesswidget",
+                    "statefulwidget",
+                    "consumerwidget",
+                    "gamified_app",
+                    "gamification",
+                    "task management",
+                    "crm",
+                    "supabase",
+                    "mobile app"
+                ],
+                "intentPatterns": [
+                    "(create|add|build|make|implement).*?(widget|flutter|dart|provider)",
+                    "(how to|best practice).*?(flutter|dart|riverpod|freezed)",
+                    "(fix|debug|refactor).*?(flutter|dart|widget)",
+                    "(setup|configure|initialize).*?(supabase|riverpod|flutter)",
+                    ".*(StateNotifier|FutureProvider|StreamProvider)",
+                    ".*(@riverpod|@freezed)"
+                ]
+            },
+            "fileTriggers": {
+                "pathPatterns": [
+                    "gamified_app/**/*.dart",
+                    "lib/**/*.dart",
+                    "**/*.dart"
+                ],
+                "pathExclusions": [
+                    "**/*.freezed.dart",
+                    "**/*.g.dart",
+                    "**/test/**/*.dart",
+                    "**/*.test.dart"
+                ],
+                "contentPatterns": [
+                    "@freezed",
+                    "@riverpod",
+                    "with \\$_[A-Za-z]+",
+                    "ConsumerWidget",
+                    "StateNotifier",
+                    "FutureProvider",
+                    "StreamProvider",
+                    "ref\\.watch",
+                    "ref\\.read",
+                    "ref\\.listen",
+                    "const.*Widget",
+                    "class.*Widget extends"
+                ]
+            }
+        },
         "skill-developer": {
             "type": "domain",
             "enforcement": "suggest",
@@ -29,7 +89,7 @@
             "type": "domain",
             "enforcement": "suggest",
             "priority": "high",
-            "description": "Backend development patterns for Node.js/Express/TypeScript",
+            "description": "Backend development patterns for Node.js/Express/TypeScript and Supabase",
             "promptTriggers": {
                 "keywords": [
                     "backend",
@@ -51,36 +111,38 @@
                     "BaseController",
                     "dependency injection",
                     "unifiedConfig",
-                    "configuration"
+                    "configuration",
+                    "supabase"
                 ],
                 "intentPatterns": [
                     "(create|add|implement|build).*?(route|endpoint|API|controller|service|repository)",
                     "(fix|handle|debug).*?(error|exception|backend)",
                     "(add|implement).*?(middleware|validation|error.*?handling)",
                     "(organize|structure|refactor).*?(backend|service|API)",
-                    "(how to|best practice).*?(backend|route|controller|service)"
+                    "(how to|best practice).*?(backend|route|controller|service)",
+                    "(setup|configure|connect).*?supabase"
                 ]
             },
             "fileTriggers": {
                 "pathPatterns": [
-                    "blog-api/src/**/*.ts",
-                    "auth-service/src/**/*.ts",
-                    "notifications-service/src/**/*.ts",
-                    "backend/**/*.ts",
-                    "api/**/*.ts",
-                    "server/**/*.ts",
-                    "services/**/*.ts"
+                    "gamified_app/lib/core/supabase/**/*.dart",
+                    "**/*service.dart",
+                    "**/*repository.dart",
+                    "**/*.sql"
                 ],
                 "pathExclusions": [
-                    "**/*.test.ts",
-                    "**/*.spec.ts"
+                    "**/*.test.dart",
+                    "**/*.spec.dart"
                 ],
                 "contentPatterns": [
-                    "router\\.",
-                    "app\\.(get|post|put|delete|patch)",
-                    "export.*Controller",
-                    "export.*Service",
-                    "prisma\\."
+                    "supabase",
+                    "from\\(.*\\)",
+                    "insert\\(.*\\)",
+                    "update\\(.*\\)",
+                    "delete\\(.*\\)",
+                    "RPC|RPC.*function",
+                    "class.*Service",
+                    "class.*Repository"
                 ]
             }
         },
@@ -209,7 +271,8 @@
                     "**/instrument.ts",
                     "**/sentry*.ts",
                     "**/*Controller.ts",
-                    "**/*Service.ts"
+                    "**/*Service.ts",
+                    "gamified_app/lib/core/**/*.dart"
                 ],
                 "contentPatterns": [
                     "@sentry",
@@ -236,6 +299,11 @@
             "pathPatterns": "Adjust to match your project structure (blog-api, auth-service, etc.)",
             "keywords": "Add domain-specific terms relevant to your project",
             "intentPatterns": "Use regex for flexible user intent matching"
+        },
+        "crm_integration": {
+            "flutter_skill": "Main skill for CRM Flutter development",
+            "auto_activation": "Skill activates when working in gamified_app directory",
+            "gamification_aware": "Understands gamification patterns and XP system"
         }
     }
 }
