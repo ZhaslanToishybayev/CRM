@@ -1,34 +1,56 @@
-/// Unit Tests for AuthProvider
-/// Tests the authentication state management
-
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gamified_task_app/features/auth/providers/auth_provider.dart';
 
+import '../helpers/fake_auth_repository.dart';
+
 void main() {
   group('AuthProvider Tests', () {
-    late AuthStateNotifier authNotifier;
+    late ProviderContainer container;
+    late FakeAuthRepository fakeAuthRepository;
 
     setUp(() {
-      authNotifier = AuthStateNotifier();
+      fakeAuthRepository = FakeAuthRepository();
+      container = ProviderContainer(
+        overrides: [
+          authRepositoryProvider.overrideWith((ref) => fakeAuthRepository),
+        ],
+      );
     });
 
-    test('should initialize with null user', () {
-      expect(authNotifier.state, isNull);
+    tearDown(() {
+      fakeAuthRepository.dispose();
+      container.dispose();
     });
 
-    test('should update state on sign in', () async {
-      // Mock test - would test actual sign in in integration test
-      expect(true, true); // Placeholder
+    test('starts unauthenticated', () {
+      expect(container.read(authStateProvider), isNull);
+      expect(container.read(isAuthenticatedProvider), isFalse);
     });
 
-    test('should clear state on sign out', () async {
-      // Mock test
-      expect(true, true); // Placeholder
+    test('updates state after sign in', () async {
+      final notifier = container.read(authStateNotifierProvider.notifier);
+
+      await notifier.signIn(
+        email: 'user@example.com',
+        password: 'Password123!',
+      );
+
+      expect(container.read(isAuthenticatedProvider), isTrue);
+      expect(container.read(authStateProvider)?.email, 'user@example.com');
     });
 
-    test('should check authentication status', () {
-      final isAuth = authNotifier.state != null;
-      expect(isAuth, isA<bool>());
+    test('clears state on sign out', () async {
+      final notifier = container.read(authStateNotifierProvider.notifier);
+
+      await notifier.signIn(
+        email: 'user@example.com',
+        password: 'Password123!',
+      );
+      await notifier.signOut();
+
+      expect(container.read(authStateProvider), isNull);
+      expect(container.read(isAuthenticatedProvider), isFalse);
     });
   });
 }

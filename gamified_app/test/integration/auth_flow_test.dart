@@ -1,41 +1,58 @@
-/// Integration Tests for Authentication Flow
-/// Tests the complete authentication flow
-
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gamified_task_app/features/auth/providers/auth_provider.dart';
 
+import '../helpers/fake_auth_repository.dart';
+
 void main() {
   group('Authentication Flow Integration Tests', () {
-    late AuthStateNotifier authNotifier;
+    late ProviderContainer container;
+    late FakeAuthRepository fakeAuthRepository;
 
     setUp(() {
-      authNotifier = AuthStateNotifier();
+      fakeAuthRepository = FakeAuthRepository();
+      container = ProviderContainer(
+        overrides: [
+          authRepositoryProvider.overrideWith((ref) => fakeAuthRepository),
+        ],
+      );
     });
 
-    test('should complete sign up flow', () async {
-      // This would be a real integration test with actual Supabase
-      // For now, it's a mock test
-      expect(true, true);
+    tearDown(() {
+      fakeAuthRepository.dispose();
+      container.dispose();
     });
 
-    test('should complete sign in flow', () async {
-      // Mock integration test
-      expect(true, true);
+    test('completes sign up -> authenticated', () async {
+      final notifier = container.read(authStateNotifierProvider.notifier);
+
+      await notifier.signUp(
+        email: 'new.user@example.com',
+        password: 'Password123!',
+        username: 'new.user',
+      );
+
+      expect(container.read(isAuthenticatedProvider), isTrue);
+      expect(container.read(authStateProvider)?.username, 'new.user');
     });
 
-    test('should maintain authentication state', () async {
-      // Mock integration test
-      expect(true, true);
+    test('supports sign in and sign out flow', () async {
+      final notifier = container.read(authStateNotifierProvider.notifier);
+
+      await notifier.signIn(
+        email: 'user@example.com',
+        password: 'Password123!',
+      );
+      expect(container.read(isAuthenticatedProvider), isTrue);
+
+      await notifier.signOut();
+      expect(container.read(isAuthenticatedProvider), isFalse);
     });
 
-    test('should handle sign out properly', () async {
-      // Mock integration test
-      expect(true, true);
-    });
-
-    test('should handle password reset', () async {
-      // Mock integration test
-      expect(true, true);
+    test('delegates reset password to repository', () async {
+      final notifier = container.read(authStateNotifierProvider.notifier);
+      await notifier.resetPassword('user@example.com');
+      expect(fakeAuthRepository.lastResetPasswordEmail, 'user@example.com');
     });
   });
 }
