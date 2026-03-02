@@ -1,16 +1,59 @@
-# gamified_task_app
+# Gamified Task App
 
-A new Flutter project.
+Flutter CRM/gamification app with Supabase backend and Riverpod state management.
 
-## Getting Started
+## Run Locally
 
-This project is a starting point for a Flutter application.
+1. Install Flutter SDK (stable channel).
+2. Install dependencies:
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+flutter pub get
+```
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+3. Run app with runtime credentials:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter run \
+  --dart-define=SUPABASE_URL=https://<project>.supabase.co \
+  --dart-define=SUPABASE_ANON_KEY=<anon_key>
+```
+
+Optional schema routing during migration:
+
+```bash
+flutter run \
+  --dart-define=SUPABASE_URL=https://<project>.supabase.co \
+  --dart-define=SUPABASE_ANON_KEY=<anon_key> \
+  --dart-define=TASKS_TABLE=work_tasks \
+  --dart-define=USER_STATS_TABLE=corporate_users \
+  --dart-define=PROFILES_TABLE=profiles
+```
+
+## Tests
+
+```bash
+./scripts/test_release_scope.sh
+```
+
+## Prod-Readiness Checks
+
+```bash
+./scripts/check_repo_hygiene.sh
+./scripts/check_schema_drift.sh
+./scripts/prod_gate.sh --use-docker
+```
+
+For full release criteria and runbooks, see:
+- `../docs/release/prod-readiness-spec.md`
+- `../docs/release/prod-readiness-checklist.md`
+- `../docs/release/staging-smoke.md`
+- `../docs/release/rollback-runbook.md`
+- `../docs/release/ci-secrets.md`
+
+## Configuration
+
+- Canonical Supabase config: `lib/core/database/supabase_config.dart`
+- Legacy path `lib/core/supabase/supabase_config.dart` is a shim.
+- Do not commit real credentials into `.env*` or Dart source files.
+- See migration notes: `SCHEMA_MIGRATION.md`
