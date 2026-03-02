@@ -3,6 +3,8 @@
 ///
 /// Calculates XP rewards based on task completion and various factors
 
+import 'dart:math' as math;
+
 import '../models/xp_model.dart';
 import '../models/level_model.dart';
 
@@ -106,7 +108,7 @@ class XPCalculatorService {
   /// Calculate level from total XP
   static int calculateLevel(int totalXP) {
     // Level = floor(sqrt(totalXP / 100))
-    final level = (totalXP / 100).sqrt().floor();
+    final level = math.sqrt(totalXP / 100).floor();
     return level.clamp(1, 999); // Max level 999
   }
 

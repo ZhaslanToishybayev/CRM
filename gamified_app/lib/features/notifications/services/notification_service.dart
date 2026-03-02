@@ -2,6 +2,7 @@
 /// Main service for managing all types of notifications
 
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/database/supabase_config.dart';
 import 'push_notification_service.dart';
 import 'email_notification_service.dart';
 import '../models/notification_model.dart';
@@ -58,11 +59,10 @@ class NotificationService {
     required String userId,
     required String achievementName,
   }) async {
-    final user = await _supabase
-        .from('user_stats')
-        .select()
-        .eq('id', userId)
-        .single();
+    final user = await SupabaseConfig.getProfile(userId);
+    if (user == null) {
+      throw Exception('User profile not found for $userId');
+    }
 
     await sendPushNotification(
       userId: userId,
@@ -72,8 +72,8 @@ class NotificationService {
     );
 
     await EmailNotificationService.sendAchievementEmail(
-      recipientEmail: user['email'],
-      username: user['username'],
+      recipientEmail: user['email']?.toString() ?? '',
+      username: user['username']?.toString() ?? 'User',
       achievementName: achievementName,
     );
   }
@@ -84,11 +84,9 @@ class NotificationService {
     required String taskTitle,
     required DateTime dueDate,
   }) async {
-    final user = await _supabase
-        .from('user_stats')
-        .select()
-        .eq('id', userId)
-        .single();
+    if (await SupabaseConfig.getProfile(userId) == null) {
+      throw Exception('User profile not found for $userId');
+    }
 
     await sendPushNotification(
       userId: userId,
@@ -103,11 +101,9 @@ class NotificationService {
     required String userId,
     required int newLevel,
   }) async {
-    final user = await _supabase
-        .from('user_stats')
-        .select()
-        .eq('id', userId)
-        .single();
+    if (await SupabaseConfig.getProfile(userId) == null) {
+      throw Exception('User profile not found for $userId');
+    }
 
     await sendPushNotification(
       userId: userId,

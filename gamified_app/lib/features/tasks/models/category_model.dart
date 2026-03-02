@@ -26,7 +26,7 @@ class CategoryModel with _$CategoryModel {
 
 /// Predefined categories
 class PredefinedCategories {
-  static const List<CategoryModel> defaults = [
+  static final List<CategoryModel> defaults = [
     CategoryModel(
       id: 'work',
       userId: 'default',
@@ -74,5 +74,5 @@ class PredefinedCategories {
     ),
   ];
 
-  static const DateTime _defaultDate = DateTime.fromMillisecondsSinceEpoch(0);
+  static final DateTime _defaultDate = DateTime.fromMillisecondsSinceEpoch(0);
 }

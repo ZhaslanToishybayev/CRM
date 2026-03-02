@@ -2,17 +2,13 @@
 /// Educational Project - Gamified Task Management App
 /// Using: Riverpod State Management + GoRouter Navigation + Supabase Database
 
-import 'dart:math' as math;
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:go_router/go_router.dart';
-import 'providers.dart';
 import 'core/supabase/supabase_config.dart';
 import 'app_router.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize Hive (local storage)

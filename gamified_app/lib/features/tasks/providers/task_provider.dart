@@ -10,9 +10,11 @@ import '../models/task_model.dart';
 import '../repositories/task_repository.dart';
 import '../repositories/task_repository_impl.dart';
 import '../data_sources/supabase_task_data_source.dart';
+import '../data_sources/task_data_source.dart';
 import '../data_sources/local_task_data_source.dart';
 import '../../gamification/providers/gamification_provider.dart';
 import '../../streak/providers/streak_provider.dart';
+import '../../auth/providers/auth_provider.dart';
 
 part 'task_provider.g.dart';
 
@@ -33,7 +35,7 @@ SupabaseTaskDataSource supabaseTaskDataSource(SupabaseTaskDataSourceRef ref) {
 // Provider for the local task data source
 @Riverpod(keepAlive: true)
 LocalTaskDataSource localTaskDataSource(LocalTaskDataSourceRef ref) {
-  return LocalTaskDataSource();
+  return HiveLocalTaskDataSource();
 }
 
 // Provider for the current user's tasks
@@ -64,8 +66,10 @@ class TaskNotifier extends _$TaskNotifier {
     final repository = ref.read(taskRepositoryProvider);
 
     // Get current user from auth provider
-    final authState = ref.read(authProvider.notifier);
-    final userId = authState.getUserId();
+    final userId = ref.read(authStateProvider)?.id;
+    if (userId == null) {
+      throw Exception('User not authenticated');
+    }
 
     final task = TaskModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),

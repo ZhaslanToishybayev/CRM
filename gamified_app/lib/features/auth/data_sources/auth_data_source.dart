@@ -11,6 +11,9 @@ abstract class AuthDataSource {
   /// Get current authenticated user
   UserModel? getCurrentUser();
 
+  /// Get current authenticated user with profile data from DB
+  Future<UserModel?> getCurrentUserWithProfile();
+
   /// Check if user is authenticated
   bool isAuthenticated();
 

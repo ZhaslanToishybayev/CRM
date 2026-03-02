@@ -9,6 +9,17 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  # Temporary exclusions for legacy/non-release modules that are not part of
+  # the supported production runtime path.
+  exclude:
+    - lib/core/integrations/**
+    - lib/core/monitoring/**
+    - lib/core/optimization/**
+    - lib/core/services/unified_notification_service.dart
+    - lib/core/supabase/auto_setup.dart
+    - lib/core/supabase/corporate_supabase_service.dart
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`

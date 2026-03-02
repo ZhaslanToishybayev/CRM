@@ -108,8 +108,8 @@ class GamificationNotifier extends _$GamificationNotifier {
 
   /// Reset XP stats (for logout)
   void reset() {
-    state = const UserStats();
-    // TODO: Clear from database
+    // Notifier state is `void`; reset is currently a no-op.
+    // TODO: Clear from database when persistent XP state is implemented.
   }
 
   /// Check if user has leveled up

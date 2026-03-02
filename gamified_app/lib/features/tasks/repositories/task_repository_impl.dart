@@ -93,8 +93,13 @@ class TaskRepositoryImpl implements TaskRepository {
   Future<TaskModel?> getTaskById(String taskId) async {
     // Check local first
     final localTasks = _localDataSource.getTasks();
-    final localTask =
-        localTasks.firstWhere((task) => task.id == taskId, orElse: () => null as TaskModel);
+    TaskModel? localTask;
+    for (final task in localTasks) {
+      if (task.id == taskId) {
+        localTask = task;
+        break;
+      }
+    }
 
     if (localTask != null && !isOnline()) {
       return localTask;
@@ -105,9 +110,7 @@ class TaskRepositoryImpl implements TaskRepository {
       return await _remoteDataSource.getTaskById(taskId);
     }
 
-    return localTasks.isNotEmpty
-        ? localTasks.firstWhere((task) => task.id == taskId, orElse: () => null)
-        : null;
+    return localTask;
   }
 
   @override

@@ -8,7 +8,7 @@ import 'package:hive/hive.dart';
 import '../models/task_model.dart';
 import 'task_data_source.dart';
 
-class LocalTaskDataSource implements LocalTaskDataSource {
+class HiveLocalTaskDataSource implements LocalTaskDataSource {
   static const String _boxName = 'tasks';
   late Box<TaskModel> _box;
 
@@ -86,11 +86,15 @@ class TaskModelAdapter extends TypeAdapter<TaskModel> {
       xp: reader.readInt(),
       priority: TaskPriority.values[reader.readInt()],
       status: TaskStatus.values[reader.readInt()],
-      dueDate: reader.readBool() ? reader.readDateTime() : null,
+      dueDate: reader.readBool()
+          ? DateTime.fromMillisecondsSinceEpoch(reader.readInt())
+          : null,
       category: reader.readString(),
-      completedAt: reader.readBool() ? reader.readDateTime() : null,
-      createdAt: reader.readDateTime(),
-      updatedAt: reader.readDateTime(),
+      completedAt: reader.readBool()
+          ? DateTime.fromMillisecondsSinceEpoch(reader.readInt())
+          : null,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(reader.readInt()),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(reader.readInt()),
     );
   }
 
@@ -105,15 +109,15 @@ class TaskModelAdapter extends TypeAdapter<TaskModel> {
     writer.writeInt(obj.status.index);
     writer.writeBool(obj.dueDate != null);
     if (obj.dueDate != null) {
-      writer.writeDateTime(obj.dueDate!);
+      writer.writeInt(obj.dueDate!.millisecondsSinceEpoch);
     }
     writer.writeString(obj.category ?? '');
     writer.writeBool(obj.completedAt != null);
     if (obj.completedAt != null) {
-      writer.writeDateTime(obj.completedAt!);
+      writer.writeInt(obj.completedAt!.millisecondsSinceEpoch);
     }
-    writer.writeDateTime(obj.createdAt);
-    writer.writeDateTime(obj.updatedAt);
+    writer.writeInt(obj.createdAt.millisecondsSinceEpoch);
+    writer.writeInt(obj.updatedAt.millisecondsSinceEpoch);
   }
 
   @override

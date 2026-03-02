@@ -20,10 +20,12 @@ class SupabaseTaskDataSource implements TaskDataSource {
       throw Exception('User not authenticated');
     }
 
+    final schema = await _resolveTaskSchema();
+
     final response = await _client
-        .from('tasks')
+        .from(schema.table)
         .select()
-        .eq('user_id', user.id)
+        .eq(schema.userIdColumn, user.id)
         .order('created_at', ascending: false);
 
     return List<Map<String, dynamic>>.from(response)
@@ -38,12 +40,14 @@ class SupabaseTaskDataSource implements TaskDataSource {
       throw Exception('User not authenticated');
     }
 
+    final schema = await _resolveTaskSchema();
+
     final response = await _client
-        .from('tasks')
+        .from(schema.table)
         .select()
         .eq('id', taskId)
-        .eq('user_id', user.id)
-        .singleOrNull();
+        .eq(schema.userIdColumn, user.id)
+        .maybeSingle();
 
     if (response == null) return null;
 
@@ -57,11 +61,16 @@ class SupabaseTaskDataSource implements TaskDataSource {
       throw Exception('User not authenticated');
     }
 
-    final taskData = _mapToJson(task);
-    taskData['user_id'] = user.id;
+    final schema = await _resolveTaskSchema();
+    final taskData = _mapToJson(
+      task,
+      table: schema.table,
+      forCreate: true,
+      userId: user.id,
+    );
 
     final response = await _client
-        .from('tasks')
+        .from(schema.table)
         .insert(taskData)
         .select()
         .single();
@@ -76,14 +85,20 @@ class SupabaseTaskDataSource implements TaskDataSource {
       throw Exception('User not authenticated');
     }
 
-    final taskData = _mapToJson(task);
+    final schema = await _resolveTaskSchema();
+    final taskData = _mapToJson(
+      task,
+      table: schema.table,
+      forCreate: false,
+      userId: user.id,
+    );
     taskData['updated_at'] = DateTime.now().toIso8601String();
 
     final response = await _client
-        .from('tasks')
+        .from(schema.table)
         .update(taskData)
         .eq('id', task.id)
-        .eq('user_id', user.id)
+        .eq(schema.userIdColumn, user.id)
         .select()
         .single();
 
@@ -97,11 +112,13 @@ class SupabaseTaskDataSource implements TaskDataSource {
       throw Exception('User not authenticated');
     }
 
+    final schema = await _resolveTaskSchema();
+
     await _client
-        .from('tasks')
+        .from(schema.table)
         .delete()
         .eq('id', taskId)
-        .eq('user_id', user.id);
+        .eq(schema.userIdColumn, user.id);
   }
 
   @override
@@ -111,15 +128,21 @@ class SupabaseTaskDataSource implements TaskDataSource {
       throw Exception('User not authenticated');
     }
 
+    final schema = await _resolveTaskSchema();
+    final updates = <String, dynamic>{
+      'updated_at': DateTime.now().toIso8601String(),
+      'is_completed': true,
+    };
+    if (schema.table == 'work_tasks') {
+      updates['status'] = 'completed';
+      updates['completed_at'] = DateTime.now().toIso8601String();
+    }
+
     final response = await _client
-        .from('tasks')
-        .update({
-          'status': 'completed',
-          'completed_at': DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String(),
-        })
+        .from(schema.table)
+        .update(updates)
         .eq('id', taskId)
-        .eq('user_id', user.id)
+        .eq(schema.userIdColumn, user.id)
         .select()
         .single();
 
@@ -132,98 +155,171 @@ class SupabaseTaskDataSource implements TaskDataSource {
     if (user == null) {
       throw Exception('User not authenticated');
     }
-
-    final channel = _client.channel('tasks:${user.id}');
-
     final controller = StreamController<List<TaskModel>>.broadcast();
+    RealtimeChannel? channel;
 
-    // Send initial data
-    getTasks().then((tasks) {
-      controller.add(tasks);
-    }).catchError((error) {
-      controller.addError(error);
+    _resolveTaskSchema().then((schema) {
+      channel = _client.channel('${schema.table}:${user.id}');
+
+      // Send initial data
+      getTasks().then(controller.add).catchError(controller.addError);
+
+      void refresh() {
+        getTasks().then(controller.add).catchError(controller.addError);
+      }
+
+      channel!.onPostgresChanges(
+        event: PostgresChangeEvent.insert,
+        schema: 'public',
+        table: schema.table,
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: schema.userIdColumn,
+          value: user.id,
+        ),
+        callback: (_) => refresh(),
+      );
+
+      channel!.onPostgresChanges(
+        event: PostgresChangeEvent.update,
+        schema: 'public',
+        table: schema.table,
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: schema.userIdColumn,
+          value: user.id,
+        ),
+        callback: (_) => refresh(),
+      );
+
+      channel!.onPostgresChanges(
+        event: PostgresChangeEvent.delete,
+        schema: 'public',
+        table: schema.table,
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: schema.userIdColumn,
+          value: user.id,
+        ),
+        callback: (_) => refresh(),
+      );
+
+      channel!.subscribe();
+    }).catchError((Object error, StackTrace stackTrace) {
+      controller.addError(error, stackTrace);
     });
 
-    // Listen to INSERT events
-    channel.on(
-      'postgres_changes',
-      event: 'INSERT',
-      schema: 'public',
-      table: 'tasks',
-      filter: 'user_id=eq.${user.id}',
-      (payload) {
-        final newTask = _mapFromJson(payload.new as Map<String, dynamic>);
-        getTasks().then(controller.add).catchError(controller.addError);
-      },
-    );
-
-    // Listen to UPDATE events
-    channel.on(
-      'postgres_changes',
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'tasks',
-      filter: 'user_id=eq.${user.id}',
-      (payload) {
-        getTasks().then(controller.add).catchError(controller.addError);
-      },
-    );
-
-    // Listen to DELETE events
-    channel.on(
-      'postgres_changes',
-      event: 'DELETE',
-      schema: 'public',
-      table: 'tasks',
-      filter: 'user_id=eq.${user.id}',
-      (payload) {
-        getTasks().then(controller.add).catchError(controller.addError);
-      },
-    );
-
-    channel.subscribe();
+    controller.onCancel = () async {
+      if (channel != null) {
+        await _client.removeChannel(channel!);
+      }
+    };
 
     return controller.stream;
   }
 
   // Helper methods to map between JSON and TaskModel
   TaskModel _mapFromJson(Map<String, dynamic> json) {
+    final userId = (json['user_id'] ?? json['assignee_id'] ?? '') as String;
+    final rawPriority = json['priority']?.toString().toLowerCase();
+    final rawStatus = json['status']?.toString().toLowerCase();
+    final isCompleted = json['is_completed'] as bool? ??
+        rawStatus == 'completed' ||
+        rawStatus == 'done' ||
+        rawStatus == 'closed';
+
+    final priority = switch (rawPriority) {
+      'low' => TaskPriority.low,
+      'high' => TaskPriority.high,
+      'urgent' => TaskPriority.urgent,
+      'critical' => TaskPriority.urgent,
+      'medium' => TaskPriority.medium,
+      _ => TaskPriority.medium,
+    };
+
+    final status = isCompleted ? TaskStatus.completed : TaskStatus.pending;
+
     return TaskModel(
       id: json['id'] as String,
-      userId: json['user_id'] as String,
+      userId: userId,
       title: json['title'] as String,
       description: json['description'] as String?,
       xp: json['xp'] as int? ?? 10,
-      priority: TaskPriority.values.firstWhere(
-        (p) => p.toString().split('.').last == json['priority'],
-        orElse: () => TaskPriority.medium,
-      ),
-      status: TaskStatus.values.firstWhere(
-        (s) => s.toString().split('.').last == json['status'],
-        orElse: () => TaskStatus.pending,
-      ),
+      priority: priority,
+      status: status,
       dueDate: json['due_date'] != null
-          ? DateTime.parse(json['due_date'] as String)
+          ? _parseDate(json['due_date'])
           : null,
       category: json['category'] as String?,
       completedAt: json['completed_at'] != null
-          ? DateTime.parse(json['completed_at'] as String)
+          ? _parseDate(json['completed_at'])
           : null,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      createdAt: _parseDate(json['created_at']) ?? DateTime.now(),
+      updatedAt: _parseDate(json['updated_at']) ?? DateTime.now(),
     );
   }
 
-  Map<String, dynamic> _mapToJson(TaskModel task) {
-    return {
+  Map<String, dynamic> _mapToJson(
+    TaskModel task, {
+    required String table,
+    required bool forCreate,
+    required String userId,
+  }) {
+    final priority = switch (task.priority) {
+      TaskPriority.low => 'low',
+      TaskPriority.medium => 'medium',
+      TaskPriority.high => 'high',
+      TaskPriority.urgent => table == 'work_tasks' ? 'urgent' : 'high',
+    };
+    final status = task.status == TaskStatus.completed ? 'completed' : 'pending';
+
+    final row = <String, dynamic>{
       'title': task.title,
       'description': task.description,
       'xp': task.xp,
-      'priority': task.priority.toString().split('.').last,
-      'status': task.status.toString().split('.').last,
+      'priority': priority,
+      'status': status,
       'due_date': task.dueDate?.toIso8601String(),
       'category': task.category,
       'completed_at': task.completedAt?.toIso8601String(),
+      'is_completed': task.status == TaskStatus.completed,
     };
+
+    if (forCreate) {
+      if (table == 'work_tasks') {
+        row['assignee_id'] = userId;
+        row['reporter_id'] = userId;
+        row['task_type'] = 'personal';
+      } else {
+        row['user_id'] = userId;
+      }
+    }
+
+    return row;
   }
+
+  Future<_TaskSchemaContext> _resolveTaskSchema() async {
+    final table = await SupabaseConfig.detectTaskTable();
+    final userIdColumn = table == 'work_tasks' ? 'assignee_id' : 'user_id';
+    return _TaskSchemaContext(
+      table: table,
+      userIdColumn: userIdColumn,
+    );
+  }
+
+  DateTime? _parseDate(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is DateTime) return raw;
+    return DateTime.tryParse(raw.toString());
+  }
+}
+
+class _TaskSchemaContext {
+  const _TaskSchemaContext({
+    required this.table,
+    required this.userIdColumn,
+  });
+
+  final String table;
+  final String userIdColumn;
 }

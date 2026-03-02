@@ -17,34 +17,54 @@ class SupabaseAuthDataSource implements AuthDataSource {
     final user = _client.auth.currentUser;
     if (user == null) return null;
 
-    // Note: This is a simplified version. In production, you might want to cache the profile
-    // For now, we'll return a basic user model
-    // The full profile will be loaded when needed
-    return null;
+    final metadata = user.userMetadata ?? const <String, dynamic>{};
+    final username = (metadata['username'] as String?) ??
+        (user.email?.split('@').first) ??
+        'user_${user.id.substring(0, 8)}';
+
+    return UserModel(
+      id: user.id,
+      email: user.email ?? '',
+      username: username,
+      fullName: metadata['full_name'] as String?,
+      avatarUrl: metadata['avatar_url'] as String?,
+      totalXP: 0,
+      currentLevel: 1,
+      streakCount: 0,
+    );
   }
 
   /// Get current user with full profile
+  @override
   Future<UserModel?> getCurrentUserWithProfile() async {
     final user = _client.auth.currentUser;
     if (user == null) return null;
 
     final profile = await SupabaseConfig.getProfile(user.id);
-    if (profile == null) return null;
+    if (profile == null) return getCurrentUser();
+
+    final metadata = user.userMetadata ?? const <String, dynamic>{};
+    final username = _readString(profile, ['username']) ??
+        (metadata['username'] as String?) ??
+        (user.email?.split('@').first) ??
+        'user_${user.id.substring(0, 8)}';
 
     return UserModel(
-      id: profile['id'] as String,
-      email: user.email!,
-      username: profile['username'] as String,
-      fullName: profile['full_name'] as String?,
-      avatarUrl: profile['avatar_url'] as String?,
-      totalXP: profile['total_xp'] as int? ?? 0,
-      currentLevel: profile['current_level'] as int? ?? 1,
-      streakCount: profile['streak_count'] as int? ?? 0,
-      lastTaskDate: profile['last_task_date'] != null
-          ? DateTime.parse(profile['last_task_date'] as String)
-          : null,
-      createdAt: DateTime.parse(profile['created_at'] as String),
-      updatedAt: DateTime.parse(profile['updated_at'] as String),
+      id: _readString(profile, ['id']) ?? user.id,
+      email: user.email ?? (_readString(profile, ['email']) ?? ''),
+      username: username,
+      fullName:
+          _readString(profile, ['full_name', 'fullName']) ??
+          (metadata['full_name'] as String?),
+      avatarUrl:
+          _readString(profile, ['avatar_url', 'avatarUrl']) ??
+          (metadata['avatar_url'] as String?),
+      totalXP: _readInt(profile, ['total_xp', 'xp'], fallback: 0),
+      currentLevel: _readInt(profile, ['current_level', 'level'], fallback: 1),
+      streakCount: _readInt(profile, ['streak_count', 'streak'], fallback: 0),
+      lastTaskDate: _readDate(profile, ['last_task_date', 'lastTaskDate']),
+      createdAt: _readDate(profile, ['created_at', 'createdAt']),
+      updatedAt: _readDate(profile, ['updated_at', 'updatedAt']),
     );
   }
 
@@ -102,42 +122,88 @@ class SupabaseAuthDataSource implements AuthDataSource {
       throw Exception('No authenticated user');
     }
 
-    final updates = <String, dynamic>{};
-    if (username != null) updates['username'] = username;
-    if (fullName != null) updates['full_name'] = fullName;
-    if (avatarUrl != null) updates['avatar_url'] = avatarUrl;
-    updates['updated_at'] = DateTime.now().toIso8601String();
+    final timestamp = DateTime.now().toIso8601String();
+    final profileUpdates = <String, dynamic>{'updated_at': timestamp};
+    final userStatsUpdates = <String, dynamic>{'updated_at': timestamp};
 
-    await _client
-        .from('profiles')
-        .update(updates)
-        .eq('id', user.id);
-
-    // Return updated user
-    final profile = SupabaseConfig.getProfile(user.id);
-    final profileData = await profile;
-
-    if (profileData == null) {
-      throw Exception('Profile not found');
+    if (username != null) {
+      profileUpdates['username'] = username;
+      userStatsUpdates['username'] = username;
+    }
+    if (fullName != null) {
+      profileUpdates['full_name'] = fullName;
+      userStatsUpdates['full_name'] = fullName;
+    }
+    if (avatarUrl != null) {
+      profileUpdates['avatar_url'] = avatarUrl;
+      userStatsUpdates['avatar_url'] = avatarUrl;
     }
 
-    return UserModel(
-      id: profileData['id'] as String,
-      email: user.email!,
-      username: profileData['username'] as String,
-      fullName: profileData['full_name'] as String?,
-      avatarUrl: profileData['avatar_url'] as String?,
-      totalXP: profileData['total_xp'] as int? ?? 0,
-      currentLevel: profileData['current_level'] as int? ?? 1,
-      streakCount: profileData['streak_count'] as int? ?? 0,
-      lastTaskDate: profileData['last_task_date'] != null
-          ? DateTime.parse(profileData['last_task_date'] as String)
-          : null,
-      createdAt: DateTime.parse(profileData['created_at'] as String),
-      updatedAt: DateTime.parse(profileData['updated_at'] as String),
-    );
+    await _bestEffortUpdate('profiles', profileUpdates, user.id);
+    await _bestEffortUpdate('user_stats', userStatsUpdates, user.id);
+
+    final updatedProfile = await getCurrentUserWithProfile();
+    if (updatedProfile != null) {
+      return updatedProfile;
+    }
+
+    final fallback = getCurrentUser();
+    if (fallback != null) {
+      return fallback;
+    }
+
+    throw Exception('Profile not found');
   }
 
   @override
   Stream<AuthState> get authStateChanges => _client.auth.onAuthStateChange;
+
+  Future<void> _bestEffortUpdate(
+    String table,
+    Map<String, dynamic> updates,
+    String userId,
+  ) async {
+    try {
+      await _client.from(table).update(updates).eq('id', userId);
+    } catch (_) {
+      // Table may differ across schema versions.
+    }
+  }
+
+  static String? _readString(Map<String, dynamic> map, List<String> keys) {
+    for (final key in keys) {
+      final value = map[key];
+      if (value is String && value.isNotEmpty) return value;
+    }
+    return null;
+  }
+
+  static int _readInt(
+    Map<String, dynamic> map,
+    List<String> keys, {
+    required int fallback,
+  }) {
+    for (final key in keys) {
+      final value = map[key];
+      if (value is int) return value;
+      if (value is num) return value.toInt();
+      if (value is String) {
+        final parsed = int.tryParse(value);
+        if (parsed != null) return parsed;
+      }
+    }
+    return fallback;
+  }
+
+  static DateTime? _readDate(Map<String, dynamic> map, List<String> keys) {
+    for (final key in keys) {
+      final value = map[key];
+      if (value is DateTime) return value;
+      if (value is String) {
+        final parsed = DateTime.tryParse(value);
+        if (parsed != null) return parsed;
+      }
+    }
+    return null;
+  }
 }

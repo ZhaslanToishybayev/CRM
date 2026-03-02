@@ -41,37 +41,6 @@ class TaskModel with _$TaskModel {
 
   factory TaskModel.fromJson(Map<String, dynamic> json) =>
       _$TaskModelFromJson(json);
-
-  /// Create a copy of this task with updated fields
-  TaskModel copyWith({
-    String? id,
-    String? userId,
-    String? title,
-    String? description,
-    int? xp,
-    TaskPriority? priority,
-    TaskStatus? status,
-    DateTime? dueDate,
-    String? category,
-    DateTime? completedAt,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-  }) {
-    return TaskModel(
-      id: id ?? this.id,
-      userId: userId ?? this.userId,
-      title: title ?? this.title,
-      description: description ?? this.description,
-      xp: xp ?? this.xp,
-      priority: priority ?? this.priority,
-      status: status ?? this.status,
-      dueDate: dueDate ?? this.dueDate,
-      category: category ?? this.category,
-      completedAt: completedAt ?? this.completedAt,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-    );
-  }
 }
 
 /// Helper extensions for TaskModel

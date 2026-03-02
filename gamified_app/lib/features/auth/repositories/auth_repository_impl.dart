@@ -51,8 +51,7 @@ class AuthRepositoryImpl implements AuthRepository {
     await Future.delayed(const Duration(seconds: 1));
 
     // Get the full user profile
-    final userWithProfile = await (_dataSource as dynamic)
-        .getCurrentUserWithProfile();
+    final userWithProfile = await _dataSource.getCurrentUserWithProfile();
 
     if (userWithProfile == null) {
       throw Exception('Failed to load user profile');
@@ -76,8 +75,7 @@ class AuthRepositoryImpl implements AuthRepository {
     }
 
     // Get the full user profile
-    final userWithProfile = await (_dataSource as dynamic)
-        .getCurrentUserWithProfile();
+    final userWithProfile = await _dataSource.getCurrentUserWithProfile();
 
     if (userWithProfile == null) {
       throw Exception('Failed to load user profile');
@@ -114,8 +112,7 @@ class AuthRepositoryImpl implements AuthRepository {
     return _dataSource.authStateChanges.asyncMap((event) async {
       if (event.event == AuthChangeEvent.signedIn ||
           event.event == AuthChangeEvent.tokenRefreshed) {
-        final userWithProfile = await (_dataSource as dynamic)
-            .getCurrentUserWithProfile();
+        final userWithProfile = await _dataSource.getCurrentUserWithProfile();
         return userWithProfile;
       } else if (event.event == AuthChangeEvent.signedOut) {
         return null;

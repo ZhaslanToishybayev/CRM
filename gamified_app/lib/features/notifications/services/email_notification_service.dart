@@ -43,7 +43,7 @@ class EmailNotificationService {
 
     try {
       final sendReport = await send(message, _smtpServer);
-      print('✅ Email sent: ${sendReport.validSentAddresses}');
+      print('✅ Email sent: $sendReport');
     } on MailerException catch (e) {
       print('❌ Email error: $e');
     }
