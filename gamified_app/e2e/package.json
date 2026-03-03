@@ -1,0 +1,12 @@
+{
+  "name": "gamified-app-e2e",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Staging smoke tests for gamified_app",
+  "scripts": {
+    "test:staging": "playwright test --config=playwright.config.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.53.0"
+  }
+}

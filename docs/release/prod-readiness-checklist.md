@@ -6,6 +6,7 @@
 - [ ] `scripts/test_release_scope.sh` green
 - [ ] `flutter build web --release` green
 - [ ] `flutter build apk --release` green (main branch)
+- [ ] `full_audit` reviewed (known failures triaged with owners)
 
 ## 2. Security
 - [ ] Repo hygiene check green (`scripts/check_repo_hygiene.sh`)
@@ -29,3 +30,7 @@
 - [ ] Rollback drill executed and documented
 - [ ] Release notes prepared
 - [ ] Go/No-Go decision signed off
+
+## 6. Cross-Platform Diagnostics (Non-Blocking for Mobile)
+- [ ] `staging_e2e` reviewed (runs only when `STAGING_BASE_URL` is configured)
+- [ ] Web smoke artifacts triaged when job reports failures

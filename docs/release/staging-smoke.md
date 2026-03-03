@@ -33,3 +33,5 @@
 - No blocker severity defects
 - No crash during core flow
 - No schema mismatch indicators
+- For mobile release, `staging_e2e` is diagnostic-only and does not block go/no-go
+- For web/cross-platform release, `staging_e2e` should be green and artifacts archived

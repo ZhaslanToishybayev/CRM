@@ -34,6 +34,7 @@ flutter run \
 
 ```bash
 ./scripts/test_release_scope.sh
+./scripts/test_full_audit.sh   # extended (nightly/diagnostic)
 ```
 
 ## Prod-Readiness Checks
@@ -41,8 +42,12 @@ flutter run \
 ```bash
 ./scripts/check_repo_hygiene.sh
 ./scripts/check_schema_drift.sh
+./scripts/run_staging_e2e.sh   # optional diagnostic, requires STAGING_BASE_URL
 ./scripts/prod_gate.sh --use-docker
 ```
+
+If you run `build/web` locally for smoke checks, compile with
+`SUPABASE_URL`/`SUPABASE_ANON_KEY` defines first (see `e2e/README.md`).
 
 For full release criteria and runbooks, see:
 - `../docs/release/prod-readiness-spec.md`
@@ -50,6 +55,7 @@ For full release criteria and runbooks, see:
 - `../docs/release/staging-smoke.md`
 - `../docs/release/rollback-runbook.md`
 - `../docs/release/ci-secrets.md`
+- `../docs/release/test-coverage-matrix.md`
 
 ## Configuration
 
