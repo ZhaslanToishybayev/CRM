@@ -1,0 +1,104 @@
+<testsuites id="" name="" tests="2" failures="2" skipped="0" errors="0" time="185.502038">
+<testsuite name="ai-retry.spec.ts" timestamp="2026-03-04T04:00:05.635Z" hostname="" tests="1" failures="1" skipped="0" time="91.178" errors="0">
+<testcase name="S5-S6 mandatory: AI error state shows Retry when key is missing/invalid" classname="ai-retry.spec.ts" time="91.178">
+<failure message="ai-retry.spec.ts:9:5 S5-S6 mandatory: AI error state shows Retry when key is missing/invalid" type="FAILURE">
+<![CDATA[  ai-retry.spec.ts:9:5 › S5-S6 mandatory: AI error state shows Retry when key is missing/invalid ───
+
+    TimeoutError: locator.waitFor: Timeout 90000ms exceeded.
+    Call log:
+      - waiting for getByText('Modern CRM').first() to be visible
+
+
+       at helpers.ts:22
+
+      20 |   const emailField = page.getByLabel('Email', { exact: false }).first();
+      21 |   await Promise.race([
+    > 22 |     loginTitle.waitFor({ state: 'visible', timeout: 90_000 }),
+         |                ^
+      23 |     emailField.waitFor({ state: 'visible', timeout: 90_000 }),
+      24 |   ]);
+      25 | }
+        at goToLogin (/home/zhaslan/code/gamified_app/e2e/tests/helpers.ts:22:16)
+        at loginWithCredentials (/home/zhaslan/code/gamified_app/e2e/tests/helpers.ts:78:3)
+        at /home/zhaslan/code/gamified_app/e2e/tests/ai-retry.spec.ts:15:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/artifacts/ai-retry-S5-S6-mandatory-A-72afa-when-key-is-missing-invalid/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/artifacts/ai-retry-S5-S6-mandatory-A-72afa-when-key-is-missing-invalid/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../test-results/artifacts/ai-retry-S5-S6-mandatory-A-72afa-when-key-is-missing-invalid/trace.zip
+    Usage:
+
+        npx playwright show-trace ../test-results/artifacts/ai-retry-S5-S6-mandatory-A-72afa-when-key-is-missing-invalid/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|artifacts/ai-retry-S5-S6-mandatory-A-72afa-when-key-is-missing-invalid/test-failed-1.png]]
+
+[[ATTACHMENT|artifacts/ai-retry-S5-S6-mandatory-A-72afa-when-key-is-missing-invalid/video.webm]]
+
+[[ATTACHMENT|artifacts/ai-retry-S5-S6-mandatory-A-72afa-when-key-is-missing-invalid/trace.zip]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+<testsuite name="core-flow.spec.ts" timestamp="2026-03-04T04:00:05.635Z" hostname="" tests="1" failures="1" skipped="0" time="90.986" errors="0">
+<testcase name="S1-S4 browser flow: login -&gt; create client -&gt; create linked task -&gt; verify in client details" classname="core-flow.spec.ts" time="90.986">
+<failure message="core-flow.spec.ts:12:5 S1-S4 browser flow: login -&gt; create client -&gt; create linked task -&gt; verify in client details" type="FAILURE">
+<![CDATA[  core-flow.spec.ts:12:5 › S1-S4 browser flow: login -> create client -> create linked task -> verify in client details 
+
+    TimeoutError: locator.waitFor: Timeout 90000ms exceeded.
+    Call log:
+      - waiting for getByText('Modern CRM').first() to be visible
+
+
+       at helpers.ts:22
+
+      20 |   const emailField = page.getByLabel('Email', { exact: false }).first();
+      21 |   await Promise.race([
+    > 22 |     loginTitle.waitFor({ state: 'visible', timeout: 90_000 }),
+         |                ^
+      23 |     emailField.waitFor({ state: 'visible', timeout: 90_000 }),
+      24 |   ]);
+      25 | }
+        at goToLogin (/home/zhaslan/code/gamified_app/e2e/tests/helpers.ts:22:16)
+        at loginWithCredentials (/home/zhaslan/code/gamified_app/e2e/tests/helpers.ts:78:3)
+        at /home/zhaslan/code/gamified_app/e2e/tests/core-flow.spec.ts:25:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/artifacts/core-flow-S1-S4-browser-fl-dff65----verify-in-client-details/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/artifacts/core-flow-S1-S4-browser-fl-dff65----verify-in-client-details/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../test-results/artifacts/core-flow-S1-S4-browser-fl-dff65----verify-in-client-details/trace.zip
+    Usage:
+
+        npx playwright show-trace ../test-results/artifacts/core-flow-S1-S4-browser-fl-dff65----verify-in-client-details/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|artifacts/core-flow-S1-S4-browser-fl-dff65----verify-in-client-details/test-failed-1.png]]
+
+[[ATTACHMENT|artifacts/core-flow-S1-S4-browser-fl-dff65----verify-in-client-details/video.webm]]
+
+[[ATTACHMENT|artifacts/core-flow-S1-S4-browser-fl-dff65----verify-in-client-details/trace.zip]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+</testsuites>

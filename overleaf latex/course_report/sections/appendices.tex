@@ -1,0 +1,83 @@
+\appendixsection{1}{Команды запуска, проверки и деплоя}
+
+\textbf{Базовый запуск проекта (web):}
+\begin{verbatim}
+flutter pub get
+flutter run -d chrome
+\end{verbatim}
+
+\textbf{Запуск backend-first с параметрами окружения:}
+\begin{verbatim}
+flutter run -d chrome \
+  --dart-define=DEMO_MODE=false \
+  --dart-define=SUPABASE_URL=... \
+  --dart-define=SUPABASE_ANON_KEY=... \
+  --dart-define=MINIMAX_API_KEY=...
+\end{verbatim}
+
+\textbf{Проверки качества:}
+\begin{verbatim}
+flutter analyze
+flutter test
+flutter test --coverage
+bash scripts/ci/report_full_lib_coverage.sh coverage/lcov.info
+bash scripts/ci/check_coverage_gate.sh coverage/lcov.info 55 \
+  scripts/ci/runtime_coverage_scope.txt
+bash scripts/ci/run_integration_smoke.sh
+\end{verbatim}
+
+\textbf{Web E2E с Supabase:}
+\begin{verbatim}
+SUPABASE_URL=... \
+SUPABASE_ANON_KEY=... \
+E2E_EMAIL=... \
+E2E_PASSWORD=... \
+E2E_DEVICE=chrome \
+bash scripts/ci/run_web_supabase_e2e.sh
+\end{verbatim}
+
+\appendixsection{2}{Структура ключевых директорий проекта}
+
+\begin{verbatim}
+lib/
+  main.dart
+  app/
+    root_layout.dart
+  features/
+    dashboard/presentation/
+    tasks/presentation/
+    crm/presentation/
+    reports/presentation/
+    profile/presentation/
+    ai/presentation/
+  providers.dart
+  providers_crm.dart
+
+docs/
+  README.md
+  migrations/
+    2026-03-04-bootstrap-runtime-schema.sql
+    2026-03-04-add-client-id-to-public-tasks.sql
+  reports/
+    2026-03-04-defense-demo-script.md
+\end{verbatim}
+
+\appendixsection{3}{Фрагменты критериев приемки функционала}
+
+\begin{longtable}{|p{5.5cm}|p{7.5cm}|}
+\hline
+\textbf{Критерий} & \textbf{Проверка} \\
+\hline
+Авторизация и redirect & Неавторизованный пользователь не попадает в \texttt{/app}; после входа открывается рабочий контур \\
+\hline
+CRUD клиентов & Создание, изменение и удаление карточек выполняется без ошибок в выбранном режиме \\
+\hline
+CRUD задач & Добавление и обновление задач отражается в списке и сохраняется в хранилище \\
+\hline
+Связь task-client & При указании \texttt{client\_id} задача отображается в карточке соответствующего клиента \\
+\hline
+Базовые отчеты & Модуль отчетности показывает агрегированные показатели по активности \\
+\hline
+Стабильность сборки & \texttt{flutter analyze} и базовые тесты выполняются без блокирующих ошибок \\
+\hline
+\end{longtable}

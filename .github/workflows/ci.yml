@@ -1,0 +1,230 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality-check:
+    name: Code Quality & Security
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.3"
+          channel: stable
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Analyze code
+        run: flutter analyze
+
+      - name: Format code
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Security audit (deps)
+        run: dart pub deps --unused-dependencies || true
+
+  test:
+    name: Run Tests + Coverage
+    runs-on: ubuntu-latest
+    needs: quality-check
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.3"
+          channel: stable
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run all tests
+        run: flutter test
+
+      - name: Generate coverage
+        run: flutter test --coverage
+
+      - name: Report full lib coverage
+        run: bash scripts/ci/report_full_lib_coverage.sh coverage/lcov.info
+
+      - name: Enforce coverage gate
+        run: bash scripts/ci/check_coverage_gate.sh coverage/lcov.info 55 scripts/ci/runtime_coverage_scope.txt
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage/lcov.info
+          fail_ci_if_error: false
+
+  integration-smoke:
+    name: Integration Smoke
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.3"
+          channel: stable
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run integration smoke
+        run: bash scripts/ci/run_integration_smoke.sh --no-pub
+
+  build-web:
+    name: Build Web Application
+    runs-on: ubuntu-latest
+    needs: [test, integration-smoke]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.3"
+          channel: stable
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build Web App
+        run: flutter build web --release --dart-define=ENVIRONMENT=production --dart-define=BACKEND_MODE=sql
+
+      - name: Upload Web Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: build/web/
+
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.3"
+          channel: stable
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build Android APK
+        run: flutter build apk --release --dart-define=ENVIRONMENT=production
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-results.sarif
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+
+  deploy-web:
+    name: Deploy Web App to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: [build-web, security-scan]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.3"
+          channel: stable
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build Web App
+        run: flutter build web --release --dart-define=ENVIRONMENT=production --dart-define=BACKEND_MODE=sql
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build/web
+
+  performance-check:
+    name: Performance Check
+    runs-on: ubuntu-latest
+    needs: quality-check
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.3"
+          channel: stable
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build web (for size analysis)
+        run: flutter build web --release
+
+      - name: Analyze bundle size
+        run: |
+          echo "Web bundle size:"
+          du -sh build/web/
+          echo ""
+          echo "Main.js size:"
+          ls -lh build/web/main.dart.js || echo "File not found"
+
+      - name: APK size check (if running on main)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "APK size would be checked in separate job"

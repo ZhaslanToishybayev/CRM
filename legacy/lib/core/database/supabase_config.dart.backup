@@ -1,0 +1,471 @@
+/// Supabase Configuration
+/// Educational Project - Gamified Task Management App
+///
+/// This file configures the Supabase client and provides:
+/// - Supabase instance setup
+/// - Database tables schema
+/// - RLS policies
+/// - Real-time subscriptions
+
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../constants/app_constants.dart';
+
+class SupabaseConfig {
+  SupabaseConfig._();
+
+  static SupabaseClient? _client;
+
+  /// Initialize Supabase client
+  /// Call this at app startup in main.dart
+  static Future<void> initialize() async {
+    if (_client != null) {
+      return; // Already initialized
+    }
+
+    await Supabase.initialize(
+      url: AppConstants.supabaseUrl,
+      anonKey: AppConstants.supabaseAnonKey,
+    );
+
+    _client = Supabase.instance.client;
+
+    // Configure real-time subscriptions
+    _configureRealtime();
+  }
+
+  /// Get Supabase client instance
+  static SupabaseClient get client {
+    if (_client == null) {
+      throw Exception(
+        'Supabase not initialized. Call SupabaseConfig.initialize() first.',
+      );
+    }
+    return _client!;
+  }
+
+  /// Check if user is authenticated
+  static bool isAuthenticated() {
+    return client.auth.currentSession != null;
+  }
+
+  /// Get current user
+  static User? get currentUser {
+    return client.auth.currentUser;
+  }
+
+  /// Sign out current user
+  static Future<void> signOut() async {
+    await client.auth.signOut();
+  }
+
+  /// Configure real-time subscriptions
+  static void _configureRealtime() {
+    // Enable real-time for all tables
+    client.channel('public:tasks').on(
+      'postgres_changes',
+      event: '*',
+      schema: 'public',
+      table: 'tasks',
+      callback: (payload) {
+        // Handle task changes
+        print('Tasks changed: ${payload.eventType}');
+      },
+    );
+
+    client.channel('public:profiles').on(
+      'postgres_changes',
+      event: '*',
+      schema: 'public',
+      table: 'profiles',
+      callback: (payload) {
+        // Handle profile changes
+        print('Profiles changed: ${payload.eventType}');
+      },
+    );
+
+    client.channel('public:achievements').on(
+      'postgres_changes',
+      event: 'INSERT',
+      schema: 'public',
+      table: 'achievements',
+      callback: (payload) {
+        // Handle new achievements
+        print('New achievement unlocked: ${payload.new}');
+      },
+    );
+  }
+
+  // ==========================================
+  // DATABASE SCHEMA SETUP
+  // ==========================================
+
+  /// SQL commands to create all tables
+  /// Run these in Supabase SQL Editor
+  static const String createProfilesTable = '''
+    -- Create profiles table
+    CREATE TABLE IF NOT EXISTS public.profiles (
+      id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
+      username TEXT UNIQUE NOT NULL,
+      full_name TEXT,
+      avatar_url TEXT,
+      total_xp INTEGER DEFAULT 0,
+      current_level INTEGER DEFAULT 1,
+      streak_count INTEGER DEFAULT 0,
+      last_task_date DATE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+
+    -- Enable RLS
+    ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+    -- RLS Policy: Users can only access their own profile
+    CREATE POLICY "Users can only access their own profile"
+    ON profiles FOR ALL
+    USING (auth.uid() = id);
+  ''';
+
+  static const String createTasksTable = '''
+    -- Create tasks table
+    CREATE TABLE IF NOT EXISTS public.tasks (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      xp INTEGER NOT NULL DEFAULT 10,
+      priority TEXT CHECK (priority IN ('low', 'medium', 'high', 'urgent')) DEFAULT 'medium',
+      status TEXT CHECK (status IN ('pending', 'completed')) DEFAULT 'pending',
+      due_date TIMESTAMP WITH TIME ZONE,
+      category TEXT,
+      completed_at TIMESTAMP WITH TIME ZONE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+
+    -- Enable RLS
+    ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+
+    -- RLS Policy: Users can only access their own tasks
+    CREATE POLICY "Users can only access their own tasks"
+    ON tasks FOR ALL
+    USING (auth.uid() = user_id);
+
+    -- Create index for better query performance
+    CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+    CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
+  ''';
+
+  static const String createAchievementsTable = '''
+    -- Create achievements table
+    CREATE TABLE IF NOT EXISTS public.achievements (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+      badge_id TEXT NOT NULL,
+      badge_name TEXT NOT NULL,
+      badge_category TEXT NOT NULL,
+      unlocked_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+
+    -- Enable RLS
+    ALTER TABLE achievements ENABLE ROW LEVEL SECURITY;
+
+    -- RLS Policy: Users can only access their own achievements
+    CREATE POLICY "Users can only access their own achievements"
+    ON achievements FOR ALL
+    USING (auth.uid() = user_id);
+
+    -- Create index for better query performance
+    CREATE INDEX IF NOT EXISTS idx_achievements_user_id ON achievements(user_id);
+    CREATE INDEX IF NOT EXISTS idx_achievements_badge_category ON achievements(badge_category);
+  ''';
+
+  static const String createLeaderboardView = '''
+    -- Create leaderboard view
+    CREATE OR REPLACE VIEW public.leaderboard AS
+    SELECT
+      p.id,
+      p.username,
+      p.full_name,
+      p.avatar_url,
+      p.total_xp,
+      p.current_level,
+      p.streak_count,
+      RANK() OVER (ORDER BY p.total_xp DESC) as rank,
+      p.created_at
+    FROM public.profiles p
+    ORDER BY p.total_xp DESC;
+
+    -- Enable RLS on view
+    ALTER VIEW leaderboard SET (security_invoker = on);
+  ''';
+
+  static const String createXPTrigger = '''
+    -- Function to award XP on task completion
+    CREATE OR REPLACE FUNCTION public.award_xp_on_completion()
+    RETURNS TRIGGER AS $\$$$
+    BEGIN
+      -- If task is marked as completed (was pending)
+      IF NEW.status = 'completed' AND OLD.status = 'pending' THEN
+        -- Update user's total XP
+        UPDATE profiles
+        SET
+          total_xp = total_xp + NEW.xp,
+          last_task_date = CURRENT_DATE
+        WHERE id = NEW.user_id;
+
+        -- Check for streak increase
+        UPDATE profiles
+        SET
+          streak_count = CASE
+            WHEN last_task_date = CURRENT_DATE - INTERVAL '1 day'
+            THEN streak_count + 1
+            WHEN last_task_date < CURRENT_DATE - INTERVAL '1 day'
+            THEN 1
+            ELSE streak_count
+          END
+        WHERE id = NEW.user_id;
+      END IF;
+
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+    -- Create trigger
+    DROP TRIGGER IF EXISTS trigger_award_xp ON tasks;
+    CREATE TRIGGER trigger_award_xp
+      AFTER UPDATE ON tasks
+      FOR EACH ROW
+      EXECUTE FUNCTION award_xp_on_completion();
+  ''';
+
+  static const String createLevelUpdateTrigger = '''
+    -- Function to update level based on XP
+    CREATE OR REPLACE FUNCTION public.update_level()
+    RETURNS TRIGGER AS $\$$$
+    DECLARE
+      new_level INTEGER;
+    BEGIN
+      -- Calculate new level
+      new_level := FLOOR(SQRT(NEW.total_xp::FLOAT / 100));
+
+      -- Update level if changed
+      IF NEW.current_level != new_level THEN
+        NEW.current_level := new_level;
+        NEW.updated_at := NOW();
+      END IF;
+
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+    -- Create trigger
+    DROP TRIGGER IF EXISTS trigger_update_level ON profiles;
+    CREATE TRIGGER trigger_update_level
+      BEFORE UPDATE ON profiles
+      FOR EACH ROW
+      EXECUTE FUNCTION update_level();
+  ''';
+
+  static const String createAchievementTriggers = '''
+    -- Function to check and award achievements
+    CREATE OR REPLACE FUNCTION public.check_achievements()
+    RETURNS TRIGGER AS $\$$$
+    BEGIN
+      -- Check for task completion streak achievements
+      IF NEW.streak_count >= 3 AND NOT EXISTS (
+        SELECT 1 FROM achievements
+        WHERE user_id = NEW.id AND badge_id = 'streak_beginner'
+      ) THEN
+        INSERT INTO achievements (user_id, badge_id, badge_name, badge_category)
+        VALUES (NEW.id, 'streak_beginner', 'Streak Beginner', 'streaks');
+      END IF;
+
+      -- Check for 7-day streak
+      IF NEW.streak_count >= 7 AND NOT EXISTS (
+        SELECT 1 FROM achievements
+        WHERE user_id = NEW.id AND badge_id = 'streak_regular'
+      ) THEN
+        INSERT INTO achievements (user_id, badge_id, badge_name, badge_category)
+        VALUES (NEW.id, 'streak_regular', 'Streak Regular', 'streaks');
+      END IF;
+
+      -- Add more achievement checks here...
+
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+    -- Create trigger
+    DROP TRIGGER IF EXISTS trigger_check_achievements ON profiles;
+    CREATE TRIGGER trigger_check_achievements
+      AFTER UPDATE ON profiles
+      FOR EACH ROW
+      EXECUTE FUNCTION check_achievements();
+  ''';
+
+  /// Complete schema setup SQL
+  static const String completeSchemaSetup = '''
+    -- Run all setup commands
+
+    -- 1. Create tables
+    ${createProfilesTable.trim()}
+
+    ${createTasksTable.trim()}
+
+    ${createAchievementsTable.trim()}
+
+    -- 2. Create views
+    ${createLeaderboardView.trim()}
+
+    -- 3. Create triggers
+    ${createXPTrigger.trim()}
+
+    ${createLevelUpdateTrigger.trim()}
+
+    ${createAchievementTriggers.trim()}
+
+    -- 4. Create function to handle new user signup
+    CREATE OR REPLACE FUNCTION public.handle_new_user()
+    RETURNS TRIGGER AS $\$$$
+    BEGIN
+      INSERT INTO public.profiles (id, username, full_name)
+      VALUES (
+        NEW.id,
+        COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1)),
+        COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1))
+      );
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+    -- Create trigger for new user
+    CREATE TRIGGER on_auth_user_created
+      AFTER INSERT ON auth.users
+      FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+  ''';
+
+  // ==========================================
+  // REAL-TIME SUBSCRIPTION HELPERS
+  // ==========================================
+
+  /// Subscribe to user's tasks changes
+  static RealtimeChannel subscribeToTasks(String userId) {
+    return client.channel('tasks:$userId')
+      ..on(
+        'postgres_changes',
+        event: 'INSERT',
+        schema: 'public',
+        table: 'tasks',
+        filter: 'user_id=eq.$userId',
+        (payload) {
+          // Handle new task
+          print('New task: ${payload.new}');
+        },
+      )
+      ..on(
+        'postgres_changes',
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'tasks',
+        filter: 'user_id=eq.$userId',
+        (payload) {
+          // Handle updated task
+          print('Updated task: ${payload.new}');
+        },
+      )
+      ..on(
+        'postgres_changes',
+        event: 'DELETE',
+        schema: 'public',
+        table: 'tasks',
+        filter: 'user_id=eq.$userId',
+        (payload) {
+          // Handle deleted task
+          print('Deleted task: ${payload.old}');
+        },
+      )
+      ..subscribe();
+  }
+
+  /// Subscribe to user profile changes
+  static RealtimeChannel subscribeToProfile(String userId) {
+    return client.channel('profile:$userId')
+      ..on(
+        'postgres_changes',
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'profiles',
+        filter: 'id=eq.$userId',
+        (payload) {
+          // Handle profile update (XP, level changes)
+          print('Profile updated: ${payload.new}');
+        },
+      )
+      ..subscribe();
+  }
+
+  /// Subscribe to achievements
+  static RealtimeChannel subscribeToAchievements(String userId) {
+    return client.channel('achievements:$userId')
+      ..on(
+        'postgres_changes',
+        event: 'INSERT',
+        schema: 'public',
+        table: 'achievements',
+        filter: 'user_id=eq.$userId',
+        (payload) {
+          // Handle new achievement
+          print('Achievement unlocked: ${payload.new}');
+        },
+      )
+      ..subscribe();
+  }
+
+  // ==========================================
+  // QUERY HELPERS
+  // ==========================================
+
+  /// Get user profile
+  static Future<Map<String, dynamic>?> getProfile(String userId) async {
+    final response = await client
+        .from('profiles')
+        .select()
+        .eq('id', userId)
+        .single();
+
+    return response;
+  }
+
+  /// Get user's tasks
+  static Future<List<Map<String, dynamic>>> getTasks(String userId) async {
+    final response = await client
+        .from('tasks')
+        .select()
+        .eq('user_id', userId)
+        .order('created_at', ascending: false);
+
+    return List<Map<String, dynamic>>.from(response as List);
+  }
+
+  /// Get user's achievements
+  static Future<List<Map<String, dynamic>>> getAchievements(String userId) async {
+    final response = await client
+        .from('achievements')
+        .select()
+        .eq('user_id', userId)
+        .order('unlocked_at', ascending: false);
+
+    return List<Map<String, dynamic>>.from(response as List);
+  }
+
+  /// Get leaderboard
+  static Future<List<Map<String, dynamic>>> getLeaderboard({int limit = 50}) async {
+    final response = await client
+        .from('leaderboard')
+        .select()
+        .limit(limit);
+
+    return List<Map<String, dynamic>>.from(response as List);
+  }
+}

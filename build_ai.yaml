@@ -1,0 +1,11 @@
+targets:
+  $default:
+    sources:
+      - lib/features/ai/**
+    builders:
+      freezed:
+        generate_for:
+          - lib/features/ai/models/**
+      json_serializable:
+        generate_for:
+          - lib/features/ai/models/**

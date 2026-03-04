@@ -1,0 +1,50 @@
+# Build Configuration for Optimization
+# This file configures Flutter to optimize build size and performance
+
+targets:
+  $default:
+    builders:
+      # Enable tree shaking for dead code elimination
+      flutter_web_sdk|flutter_web_sdk:
+        options:
+          # Optimize canvaskit rendering
+          canvasKitAdditionalScript: true
+          
+      # Minify and optimize JavaScript with aggressive tree-shaking
+      build_web_compilers|entrypoint:
+        options:
+          compiler: dart2js
+          minify: true
+          # Comprehensive tree-shaking and optimization flags
+          dart2js_args:
+            # Tree-shaking and dead code elimination
+            - --fast-startup
+            - --minify
+            - --trust-type-annotations
+            - --trust-constant-invocations
+            - --trust-primitives
+            - --enable-asserts
+            - --omit-implicit-checks
+
+            # Aggressive optimization for production
+            - --optimization-level=4
+            - --experimental-minify
+            - --simplify-isolates
+
+            # Control flow optimizations
+            - --enable-font-face
+            - --disable-inlining
+
+            # Output optimizations
+            - --dump-info
+            - --multi-chunk
+            - --split-chunks=32
+            
+      # Optimize CSS
+      build_web_compilers|web_stack_trace_strategy:
+        options:
+          level: info
+
+      # Exclude problematic achievement_detail_screen file from code generation
+      achievement_detail_screen|achievement_detail:
+        enabled: false

@@ -1,0 +1,16 @@
+# Production runtime scope for coverage gate.
+# Format:
+# +<glob> include pattern
+# -<glob> exclude pattern
+
++lib/auth/**
++lib/core/database/**
++lib/features/crm/utils/**
++lib/features/theme/**
++lib/features/localization/**
++lib/features/ai/services/**
++lib/features/ai/presentation/ai_assistant_screen.dart
++lib/main.dart
+
+-lib/**/*.g.dart
+-lib/**/*.freezed.dart
